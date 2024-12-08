@@ -39,47 +39,66 @@ def extract_utilization_table(version):
     try:
         report_path = '_x.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/reports/link/imp/impl_1_kernel_util_routed.rpt'
         with open(report_path, 'r') as f:
-            content = f.read()
+            lines = f.readlines()
             
         # find utilization table
-        table_start = content.find('1. System Utilization')
-        table_end = content.find('\n\n', table_start)
-        if table_start != -1 and table_end != -1:
-            table_content = content[table_start:table_end]
+        last_50_lines = lines[-50:]
             
             # write to run.log
-            with open(f'v{version}/run.log', 'w') as log:
-                log.write(table_content + '\n\n')
-            return True
+        with open(f'v{version}/run.log', 'w') as log:
+            log.writelines(last_50_lines)
+        return True
     except Exception as e:
         print(f"Error extracting utilization table: {e}")
         return False
 
 def extract_timing_summary(version):
-    """extract timing summary"""
+    """Extract lines 135 to 145 from the timing summary report"""
     try:
         timing_path = '_x.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/reports/link/imp/impl_1_hw_bb_locked_timing_summary_routed.rpt'
+        
+
         with open(timing_path, 'r') as f:
-            content = f.read()
-            
-        # find timing summary
-        timing_start = content.find('Design Timing Summary')
-        if timing_start != -1:
-            lines = content[timing_start:].split('\n')
-            # find the line containing WNS(ns)
-            for i, line in enumerate(lines):
-                if 'WNS(ns)' in line and i + 1 < len(lines):
-                    timing_data = lines[i] + '\n' + lines[i+1] + '\n'
-                    
-                    # append to run.log
-                    with open(f'v{version}/run.log', 'a') as log:
-                        log.write('\nTiming Summary:\n')
-                        log.write(timing_data)
-                    return True
+            lines = f.readlines()
+        
+
+        selected_lines = lines[134:145]  
+        
+        os.makedirs(f'v{version}', exist_ok=True)
+        
+
+        with open(f'v{version}/run.log', 'a') as log:
+            log.write('\nTiming Summary (Lines 135-145):\n')
+            log.writelines(selected_lines)
+        
+        print(f"Successfully extracted lines 135-145 to v{version}/run.log")
+        return True
     except Exception as e:
         print(f"Error extracting timing summary: {e}")
         return False
-file = [3,4]
+def copy_reports(version):
+    """Copy report files to version directory"""
+    try:
+        # Create version directory if it doesn't exist
+        os.makedirs(f'v{version}', exist_ok=True)
+        
+        # Define report files to copy
+        report_files = [
+            '_x.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/reports/link/imp/impl_1_kernel_util_routed.rpt',
+            '_x.hw.xilinx_u250_gen3x16_xdma_4_1_202210_1/reports/link/imp/impl_1_hw_bb_locked_timing_summary_routed.rpt'
+        ]
+        
+        for report in report_files:
+            if os.path.isfile(report):
+                dst_report = os.path.join(f'v{version}', os.path.basename(report))
+                shutil.copy2(report, dst_report)
+                print(f"Copied {report} to {dst_report}")
+            else:
+                print(f"Report file {report} not found.")
+    except Exception as e:
+        print(f"Error copying report files: {e}")
+file = [4]
+
 def main():
     """main function"""
     for version in file:  # handle versions 0, 1, 2
@@ -89,7 +108,7 @@ def main():
         if copy_and_build(version):
             # move xclbin file
             move_xclbin(version)
-            
+            copy_reports(version)
             # extract utilization table and timing summary
             extract_utilization_table(version)
             extract_timing_summary(version)
